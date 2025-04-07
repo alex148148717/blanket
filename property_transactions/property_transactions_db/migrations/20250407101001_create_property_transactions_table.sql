@@ -3,8 +3,8 @@
 CREATE TABLE property_transactions
 (
     id              UInt64,
-    user_id         UInt32,
-    property_id     UInt32,
+    user_id         String,
+    property_id     String,
     amount          Float64,
     date            DateTime,
     created_at      DateTime DEFAULT now()

@@ -3,7 +3,7 @@ package property_transactions_db
 import "time"
 
 type PropertyTransactions struct {
-	PropertyID int
+	PropertyID string
 	Amount     float64
 	Date       time.Time
 }
@@ -23,8 +23,8 @@ type AllPropertyTransactionsParams struct {
 }
 
 type Transaction struct {
-	UserID     uint32    `json:"user_id"`
-	PropertyID uint32    `json:"property_id"`
+	UserID     string    `json:"user_id"`
+	PropertyID string    `json:"property_id"`
 	Amount     float64   `json:"amount"`
 	Date       time.Time `json:"date"`
 }

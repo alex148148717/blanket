@@ -26,7 +26,7 @@ func New(ctx context.Context, config Config) (*Client, error) {
 	return &c, nil
 }
 
-func (c *Client) Add(ctx context.Context, userID int, propertyID int, txID int, propertyTransactions PropertyTransactions) error {
+func (c *Client) Add(ctx context.Context, userID string, propertyID string, txID int, propertyTransactions PropertyTransactions) error {
 
 	query := `
 		INSERT INTO property_transactions 
@@ -36,7 +36,7 @@ func (c *Client) Add(ctx context.Context, userID int, propertyID int, txID int, 
 
 	return c.clickhouseConn.Exec(ctx, query,
 		txID,
-		uint32(userID),
+		userID,
 		propertyID,
 		propertyTransactions.Amount,
 		propertyTransactions.Date,
@@ -44,7 +44,7 @@ func (c *Client) Add(ctx context.Context, userID int, propertyID int, txID int, 
 
 }
 
-func (c *Client) All(ctx context.Context, userID int, propertyID int, allPropertyTransactions AllPropertyTransactionsParams) ([]Transaction, error) {
+func (c *Client) All(ctx context.Context, userID string, propertyID string, allPropertyTransactions AllPropertyTransactionsParams) ([]Transaction, error) {
 
 	query := `
 		SELECT  user_id, property_id, amount,  date
@@ -110,7 +110,7 @@ func FormatQuery(query string, args []interface{}) string {
 	return query
 }
 
-func (c *Client) Balance(ctx context.Context, userID int, propertyID int) (float64, error) {
+func (c *Client) Balance(ctx context.Context, userID string, propertyID string) (float64, error) {
 
 	query := `
 		SELECT  sum(amount)as amount
@@ -134,7 +134,7 @@ func (c *Client) Balance(ctx context.Context, userID int, propertyID int) (float
 
 }
 
-func (c *Client) MonthlyBalance(ctx context.Context, userID int, propertyID int, from time.Time, to time.Time) ([]Transaction, error) {
+func (c *Client) MonthlyBalance(ctx context.Context, userID string, propertyID string, from time.Time, to time.Time) ([]Transaction, error) {
 
 	query := `
 		SELECT   amount

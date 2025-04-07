@@ -14,10 +14,10 @@ import (
 )
 
 type PropertyTransactionsClient interface {
-	Add(ctx context.Context, userID int, propertyID int, txID int, propertyTransactions property_transactions_db.PropertyTransactions) (int, error)
-	All(ctx context.Context, userID int, propertyId int, propertyTransactions property_transactions_db.AllPropertyTransactionsParams) ([]property_transactions_db.Transaction, error)
-	Balance(ctx context.Context, userID int, propertyID int) (float64, error)
-	MonthlyBalance(ctx context.Context, userID int, propertyID int, from time.Time, to time.Time) (*property_transactions_bl.MonthlyBalanceData, error)
+	Add(ctx context.Context, userID string, propertyID string, txID int, propertyTransactions property_transactions_db.PropertyTransactions) (int, error)
+	All(ctx context.Context, userID string, propertyId string, propertyTransactions property_transactions_db.AllPropertyTransactionsParams) ([]property_transactions_db.Transaction, error)
+	Balance(ctx context.Context, userID string, propertyID string) (float64, error)
+	MonthlyBalance(ctx context.Context, userID string, propertyID string, from time.Time, to time.Time) (*property_transactions_bl.MonthlyBalanceData, error)
 }
 
 type Server struct {
@@ -56,6 +56,7 @@ func (s *Server) addPropertyTransactionsHandler(w http.ResponseWriter, r *http.R
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
+	defer r.Body.Close()
 	//todo ...
 	txID := int(time.Now().UnixNano())
 	propertyTransactions, err := req.ToModel()

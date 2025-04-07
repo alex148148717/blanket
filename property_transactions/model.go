@@ -10,7 +10,7 @@ import (
 )
 
 type PropertyTransactionsRequest struct {
-	PropertyID int     `json:"propertyID"`
+	PropertyID string  `json:"propertyID"`
 	Amount     float64 `json:"amount"`
 	Date       int64   `json:"date"`
 }

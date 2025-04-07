@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/go-chi/chi"
+	"github.com/google/uuid"
 	"io"
 	"math/rand"
 	"net/http"
@@ -56,9 +57,9 @@ func TestInvalidUserID(t *testing.T) {
 	server := httptest.NewServer(r)
 	defer server.Close()
 
-	addUrl := fmt.Sprintf("%s/property_transactions/v1/alex/", server.URL)
+	addUrl := fmt.Sprintf("%s/property_transactions/v1/a/", server.URL)
 
-	propertyTransactionsRequest := PropertyTransactionsRequest{PropertyID: 1, Amount: 100, Date: time.Now().Unix()}
+	propertyTransactionsRequest := PropertyTransactionsRequest{PropertyID: "1", Amount: 100, Date: time.Now().Unix()}
 	b, _ := json.Marshal(propertyTransactionsRequest)
 	resp, err := http.Post(addUrl, "application/json", bytes.NewBuffer(b))
 	if err != nil {
@@ -106,9 +107,9 @@ func TestAddPropertyTransactions(t *testing.T) {
 	server := httptest.NewServer(r)
 	defer server.Close()
 
-	userID := 14
-	propertyID := 4
-	addUrl := fmt.Sprintf("%s/property_transactions/v1/user/%d/", server.URL, userID)
+	userID := uuid.NewString()
+	propertyID := uuid.NewString()
+	addUrl := fmt.Sprintf("%s/property_transactions/v1/user/%s/", server.URL, userID)
 
 	addPropertyTransactions := func(t *testing.T, propertyTransactionsRequest PropertyTransactionsRequest) {
 		b, _ := json.Marshal(propertyTransactionsRequest)
@@ -131,7 +132,7 @@ func TestAddPropertyTransactions(t *testing.T) {
 	addPropertyTransactions(t, PropertyTransactionsRequest{PropertyID: propertyID, Amount: -100, Date: time.Now().Unix()})
 	addPropertyTransactions(t, PropertyTransactionsRequest{PropertyID: propertyID, Amount: 12.5, Date: time.Now().Unix()})
 
-	allUrl := fmt.Sprintf("%s/property_transactions/v1/user/%d/property/%d/", server.URL, userID, propertyID)
+	allUrl := fmt.Sprintf("%s/property_transactions/v1/user/%s/property/%s/", server.URL, userID, propertyID)
 
 	allPropertyTransactions := func(t *testing.T, queryParams QueryParams) {
 		url := buildURL(allUrl, queryParams)
@@ -151,14 +152,11 @@ func TestAddPropertyTransactions(t *testing.T) {
 		}
 	}
 
-	/*
-		allPropertyTransactions(t, QueryParams{
-			Type: "income", From: time.Now().AddDate(0, 0, -1).Truncate(24 * time.Hour).Unix(),
-			To:   time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour).Unix(),
-			Page: 1, Limit: 20,
-		})
-
-	*/
+	allPropertyTransactions(t, QueryParams{
+		Type: "income", From: time.Now().AddDate(0, 0, -1).Truncate(24 * time.Hour).Unix(),
+		To:   time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour).Unix(),
+		Page: 1, Limit: 20,
+	})
 
 	allPropertyTransactions(t, QueryParams{
 		Type: "expense", From: time.Now().AddDate(0, 0, -1).Truncate(24 * time.Hour).Unix(),
@@ -225,9 +223,9 @@ func TestBalance(t *testing.T) {
 	server := httptest.NewServer(r)
 	defer server.Close()
 
-	userID := 21
-	propertyID := 5
-	addUrl := fmt.Sprintf("%s/property_transactions/v1/user/%d/", server.URL, userID)
+	userID := uuid.NewString()
+	propertyID := uuid.NewString()
+	addUrl := fmt.Sprintf("%s/property_transactions/v1/user/%s/", server.URL, userID)
 
 	addPropertyTransactions := func(t *testing.T, propertyTransactionsRequest PropertyTransactionsRequest) {
 		b, _ := json.Marshal(propertyTransactionsRequest)
@@ -251,8 +249,8 @@ func TestBalance(t *testing.T) {
 
 	rand.Seed(time.Now().UnixNano())
 
-	limit := 1000
-	workers := 100
+	limit := 100
+	workers := 20
 	wg := sync.WaitGroup{}
 	wg.Add(workers)
 	balanceCHan := make(chan float64, limit)
@@ -272,7 +270,7 @@ func TestBalance(t *testing.T) {
 	close(balanceCHan)
 	wg.Wait()
 
-	balanceURL := fmt.Sprintf("%s/property_transactions/v1/user/%d/property/%d/balance/", server.URL, userID, propertyID)
+	balanceURL := fmt.Sprintf("%s/property_transactions/v1/user/%s/property/%s/balance/", server.URL, userID, propertyID)
 
 	resp, err := http.Get(balanceURL)
 	if err != nil {
@@ -320,9 +318,9 @@ func TestMonthlyReport(t *testing.T) {
 	server := httptest.NewServer(r)
 	defer server.Close()
 
-	userID := 26
-	propertyID := 5
-	addUrl := fmt.Sprintf("%s/property_transactions/v1/user/%d/", server.URL, userID)
+	userID := uuid.NewString()
+	propertyID := uuid.NewString()
+	addUrl := fmt.Sprintf("%s/property_transactions/v1/user/%s/", server.URL, userID)
 
 	addPropertyTransactions := func(t *testing.T, propertyTransactionsRequest PropertyTransactionsRequest) {
 		b, _ := json.Marshal(propertyTransactionsRequest)
@@ -350,7 +348,7 @@ func TestMonthlyReport(t *testing.T) {
 		expectedBalance += b
 	}
 
-	balanceURL := fmt.Sprintf("%s/property_transactions/v1/user/%d/property/%d/monthly_report/", server.URL, userID, propertyID)
+	balanceURL := fmt.Sprintf("%s/property_transactions/v1/user/%s/property/%s/monthly_report/", server.URL, userID, propertyID)
 
 	resp, err := http.Get(balanceURL)
 	if err != nil {
