@@ -3,12 +3,14 @@ package property_transactions_bl
 import (
 	"context"
 	"property_transactions/property_transactions/property_transactions_db"
+	"time"
 )
 
 type DBClient interface {
 	Add(ctx context.Context, userID int, propertyID int, txID int, propertyTransactions property_transactions_db.PropertyTransactions) error
 	All(ctx context.Context, userID int, propertyID int, allPropertyTransactions property_transactions_db.AllPropertyTransactionsParams) ([]property_transactions_db.Transaction, error)
 	Balance(ctx context.Context, userID int, propertyID int) (float64, error)
+	MonthlyBalance(ctx context.Context, userID int, propertyID int, from time.Time, to time.Time) ([]property_transactions_db.Transaction, error)
 }
 type Client struct {
 	dbClient DBClient
@@ -38,4 +40,38 @@ func (c *Client) All(ctx context.Context, userID int, propertyID int, propertyTr
 func (c *Client) Balance(ctx context.Context, userID int, propertyID int) (float64, error) {
 	return c.dbClient.Balance(ctx, userID, propertyID)
 
+}
+
+func (c *Client) MonthlyBalance(ctx context.Context, userID int, propertyID int, from time.Time, to time.Time) (*MonthlyBalanceData, error) {
+	transactions, err := c.dbClient.MonthlyBalance(ctx, userID, propertyID, from, to)
+	if err != nil {
+		return nil, err
+	}
+
+	_ = transactions
+	monthlyBalanceData := MonthlyBalanceData{}
+
+	if len(transactions) == 0 {
+		return &monthlyBalanceData, nil
+	}
+	monthlyBalanceData.StartingCash = transactions[0].Amount
+	monthlyBalanceData.EndCash += transactions[0].Amount
+	records := make([]Record, 0, len(transactions)-1)
+
+	for i := 1; i < len(transactions); i++ {
+		transaction := transactions[i]
+		monthlyBalanceData.EndCash += transaction.Amount
+		transactionType := property_transactions_db.TransactionTypeIncome
+		if transaction.Amount < 0 {
+			transactionType = property_transactions_db.TransactionTypeExpense
+		}
+		records = append(records, Record{
+			Record:          i,
+			TransactionType: transactionType,
+			Amount:          transaction.Amount,
+			Total:           monthlyBalanceData.EndCash,
+		})
+	}
+	monthlyBalanceData.Records = records
+	return &monthlyBalanceData, nil
 }

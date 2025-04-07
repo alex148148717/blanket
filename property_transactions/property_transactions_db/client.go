@@ -133,3 +133,35 @@ func (c *Client) Balance(ctx context.Context, userID int, propertyID int) (float
 	return balance, nil
 
 }
+
+func (c *Client) MonthlyBalance(ctx context.Context, userID int, propertyID int, from time.Time, to time.Time) ([]Transaction, error) {
+
+	query := `
+		SELECT   amount
+		FROM property_transactions
+		WHERE user_id = ? AND property_id = ?
+		AND date >= toDate(?) AND date <= toDate(?)
+		order by date 
+	`
+
+	args := []interface{}{userID, propertyID, from.Unix(), to.Unix()}
+
+	rows, err := c.clickhouseConn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []Transaction
+	for rows.Next() {
+		var t Transaction
+
+		if err := rows.Scan(&t.Amount); err != nil {
+			return nil, err
+		}
+
+		results = append(results, t)
+	}
+	return results, nil
+
+}

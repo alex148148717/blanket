@@ -108,7 +108,7 @@ func TestAddPropertyTransactions(t *testing.T) {
 
 	userID := 14
 	propertyID := 4
-	addUrl := fmt.Sprintf("%s/property_transactions/v1/%d/", server.URL, userID)
+	addUrl := fmt.Sprintf("%s/property_transactions/v1/user/%d/", server.URL, userID)
 
 	addPropertyTransactions := func(t *testing.T, propertyTransactionsRequest PropertyTransactionsRequest) {
 		b, _ := json.Marshal(propertyTransactionsRequest)
@@ -131,7 +131,7 @@ func TestAddPropertyTransactions(t *testing.T) {
 	addPropertyTransactions(t, PropertyTransactionsRequest{PropertyID: propertyID, Amount: -100, Date: time.Now().Unix()})
 	addPropertyTransactions(t, PropertyTransactionsRequest{PropertyID: propertyID, Amount: 12.5, Date: time.Now().Unix()})
 
-	allUrl := fmt.Sprintf("%s/property_transactions/v1/%d/property/%d/", server.URL, userID, propertyID)
+	allUrl := fmt.Sprintf("%s/property_transactions/v1/user/%d/property/%d/", server.URL, userID, propertyID)
 
 	allPropertyTransactions := func(t *testing.T, queryParams QueryParams) {
 		url := buildURL(allUrl, queryParams)
@@ -227,7 +227,7 @@ func TestBalance(t *testing.T) {
 
 	userID := 21
 	propertyID := 5
-	addUrl := fmt.Sprintf("%s/property_transactions/v1/%d/", server.URL, userID)
+	addUrl := fmt.Sprintf("%s/property_transactions/v1/user/%d/", server.URL, userID)
 
 	addPropertyTransactions := func(t *testing.T, propertyTransactionsRequest PropertyTransactionsRequest) {
 		b, _ := json.Marshal(propertyTransactionsRequest)
@@ -272,7 +272,7 @@ func TestBalance(t *testing.T) {
 	close(balanceCHan)
 	wg.Wait()
 
-	balanceURL := fmt.Sprintf("%s/property_transactions/v1/%d/property/%d/balance/", server.URL, userID, propertyID)
+	balanceURL := fmt.Sprintf("%s/property_transactions/v1/user/%d/property/%d/balance/", server.URL, userID, propertyID)
 
 	resp, err := http.Get(balanceURL)
 	if err != nil {
@@ -287,6 +287,85 @@ func TestBalance(t *testing.T) {
 	}
 	if getPropertyBalanceHandlerResponse.Data.Balance != expectedBalance {
 		t.Errorf("Expected %v, got %v", expectedBalance, getPropertyBalanceHandlerResponse.Data.Balance)
+	}
+
+}
+
+func TestMonthlyReport(t *testing.T) {
+	ctx := context.Background()
+	clickhouseOptions := clickhouse.Options{
+		Addr: []string{"localhost:9000"},
+		Auth: clickhouse.Auth{
+			Database: "default",
+			Username: "myuser",
+			Password: "mypassword",
+		},
+		DialTimeout: time.Second * 10,
+		Debug:       false,
+	}
+	propertyTransactionsDBClient, err := property_transactions_db.New(ctx, property_transactions_db.Config{ClickhouseOptions: clickhouseOptions})
+	if err != nil {
+		t.Error(err)
+	}
+	propertyTransactionsClient, err := property_transactions_bl.New(propertyTransactionsDBClient)
+	if err != nil {
+		t.Error(err)
+	}
+	r := chi.NewRouter()
+	s, err := New(ctx, r, propertyTransactionsClient)
+	if err != nil {
+		t.Error(err)
+	}
+	_ = s
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	userID := 26
+	propertyID := 5
+	addUrl := fmt.Sprintf("%s/property_transactions/v1/user/%d/", server.URL, userID)
+
+	addPropertyTransactions := func(t *testing.T, propertyTransactionsRequest PropertyTransactionsRequest) {
+		b, _ := json.Marshal(propertyTransactionsRequest)
+		resp, err := http.Post(addUrl, "application/json", bytes.NewBuffer(b))
+		if err != nil {
+			t.Fatalf("Failed to send GET: %v", err)
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		var propertyTransactionsResponse PropertyTransactionsResponse
+		if err := json.Unmarshal(body, &propertyTransactionsResponse); err != nil {
+			t.Fatalf("json.Unmarshal: %s", string(body))
+		}
+		if propertyTransactionsResponse.Success != true {
+			t.Errorf("Expected %v, got %v", true, propertyTransactionsResponse.Success)
+		}
+	}
+
+	var expectedBalance float64
+	balance := []float64{100, 200, -50, 60, 30, -49, 4000, -34, 455, -945, 34, 56}
+
+	for _, b := range balance {
+		addPropertyTransactions(t, PropertyTransactionsRequest{PropertyID: propertyID, Amount: b, Date: time.Now().Unix()})
+		expectedBalance += b
+	}
+
+	balanceURL := fmt.Sprintf("%s/property_transactions/v1/user/%d/property/%d/monthly_report/", server.URL, userID, propertyID)
+
+	resp, err := http.Get(balanceURL)
+	if err != nil {
+		t.Fatalf("Failed to send GET: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var getPropertyMonthlyReportResponse GetPropertyMonthlyReportResponse
+	if err := json.Unmarshal(body, &getPropertyMonthlyReportResponse); err != nil {
+		t.Fatalf("json.Unmarshal: %s", string(body))
+	}
+	balanceX := getPropertyMonthlyReportResponse.Data.MonthlyBalanceData.EndCash
+	if balanceX != expectedBalance {
+		t.Errorf("Expected %v, got %v", expectedBalance, balanceX)
 	}
 
 }

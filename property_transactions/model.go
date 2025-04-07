@@ -3,6 +3,7 @@ package property_transactions
 import (
 	"errors"
 	"net/http"
+	"property_transactions/property_transactions/property_transactions_bl"
 	"property_transactions/property_transactions/property_transactions_db"
 	"strconv"
 	"time"
@@ -103,4 +104,42 @@ type Balance struct {
 type GetPropertyBalanceHandlerResponse struct {
 	Success bool    `json:"success"`
 	Data    Balance `json:"data"`
+}
+
+type Record struct {
+	Record          int                                      `json:"id"`
+	TransactionType property_transactions_db.TransactionType `json:"type"`
+	Amount          float64                                  `json:"amount"`
+	Total           float64                                  `json:"total"`
+}
+
+type MonthlyBalanceData struct {
+	StartingCash float64  `json:"startingCash"`
+	Records      []Record `json:"records"`
+	EndCash      float64  `json:"endCash"`
+}
+type MonthlyReport struct {
+	MonthlyBalanceData MonthlyBalanceData `json:"monthlyBalance"`
+}
+type GetPropertyMonthlyReportResponse struct {
+	Success bool          `json:"success"`
+	Data    MonthlyReport `json:"data"`
+}
+
+func ConvertMonthlyBalanceData(monthlyBalanceData property_transactions_bl.MonthlyBalanceData) MonthlyBalanceData {
+	records := make([]Record, 0, len(monthlyBalanceData.Records))
+	for _, r := range monthlyBalanceData.Records {
+		records = append(records, Record{
+			Record:          r.Record,
+			TransactionType: r.TransactionType,
+			Amount:          r.Amount,
+			Total:           r.Total,
+		})
+	}
+
+	return MonthlyBalanceData{
+		StartingCash: monthlyBalanceData.StartingCash,
+		Records:      records,
+		EndCash:      monthlyBalanceData.EndCash,
+	}
 }
