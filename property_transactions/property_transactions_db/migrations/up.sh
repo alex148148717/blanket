@@ -1,0 +1,1 @@
+goose -dir . clickhouse "clickhouse://myuser:mypassword@localhost:9000/default" up

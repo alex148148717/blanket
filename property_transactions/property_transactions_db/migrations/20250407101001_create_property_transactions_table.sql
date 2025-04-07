@@ -1,0 +1,19 @@
+-- +goose Up
+-- +goose StatementBegin
+CREATE TABLE property_transactions
+(
+    id              UInt64,
+    user_id         UInt32,
+    property_id     UInt32,
+    amount          Decimal(12, 2),
+    date            DateTime,
+    created_at      DateTime DEFAULT now()
+)
+    ENGINE = MergeTree()
+ORDER BY (date, id);
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+DROP TABLE IF EXISTS property_transactions;
+-- +goose StatementEnd
