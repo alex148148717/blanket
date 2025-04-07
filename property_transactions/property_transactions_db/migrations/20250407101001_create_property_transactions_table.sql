@@ -5,7 +5,7 @@ CREATE TABLE property_transactions
     id              UInt64,
     user_id         UInt32,
     property_id     UInt32,
-    amount          Decimal(12, 2),
+    amount          Float64,
     date            DateTime,
     created_at      DateTime DEFAULT now()
 )
