@@ -8,12 +8,14 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/go-chi/chi"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"property_transactions/property_transactions/property_transactions_bl"
 	"property_transactions/property_transactions/property_transactions_db"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -129,7 +131,7 @@ func TestAddPropertyTransactions(t *testing.T) {
 	addPropertyTransactions(t, PropertyTransactionsRequest{PropertyID: propertyID, Amount: -100, Date: time.Now().Unix()})
 	addPropertyTransactions(t, PropertyTransactionsRequest{PropertyID: propertyID, Amount: 12.5, Date: time.Now().Unix()})
 
-	allUrl := fmt.Sprintf("%s/property_transactions/v1/%d/%d/", server.URL, userID, propertyID)
+	allUrl := fmt.Sprintf("%s/property_transactions/v1/%d/property/%d/", server.URL, userID, propertyID)
 
 	allPropertyTransactions := func(t *testing.T, queryParams QueryParams) {
 		url := buildURL(allUrl, queryParams)
@@ -192,4 +194,99 @@ func buildURL(baseURL string, params QueryParams) string {
 		q.Set("limit", strconv.Itoa(params.Limit))
 	}
 	return fmt.Sprintf("%s?%s", baseURL, q.Encode())
+}
+
+func TestBalance(t *testing.T) {
+	ctx := context.Background()
+	clickhouseOptions := clickhouse.Options{
+		Addr: []string{"localhost:9000"},
+		Auth: clickhouse.Auth{
+			Database: "default",
+			Username: "myuser",
+			Password: "mypassword",
+		},
+		DialTimeout: time.Second * 10,
+		Debug:       false,
+	}
+	propertyTransactionsDBClient, err := property_transactions_db.New(ctx, property_transactions_db.Config{ClickhouseOptions: clickhouseOptions})
+	if err != nil {
+		t.Error(err)
+	}
+	propertyTransactionsClient, err := property_transactions_bl.New(propertyTransactionsDBClient)
+	if err != nil {
+		t.Error(err)
+	}
+	r := chi.NewRouter()
+	s, err := New(ctx, r, propertyTransactionsClient)
+	if err != nil {
+		t.Error(err)
+	}
+	_ = s
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	userID := 21
+	propertyID := 5
+	addUrl := fmt.Sprintf("%s/property_transactions/v1/%d/", server.URL, userID)
+
+	addPropertyTransactions := func(t *testing.T, propertyTransactionsRequest PropertyTransactionsRequest) {
+		b, _ := json.Marshal(propertyTransactionsRequest)
+		resp, err := http.Post(addUrl, "application/json", bytes.NewBuffer(b))
+		if err != nil {
+			t.Fatalf("Failed to send GET: %v", err)
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		var propertyTransactionsResponse PropertyTransactionsResponse
+		if err := json.Unmarshal(body, &propertyTransactionsResponse); err != nil {
+			t.Fatalf("json.Unmarshal: %s", string(body))
+		}
+		if propertyTransactionsResponse.Success != true {
+			t.Errorf("Expected %v, got %v", true, propertyTransactionsResponse.Success)
+		}
+	}
+
+	var expectedBalance float64
+
+	rand.Seed(time.Now().UnixNano())
+
+	limit := 1000
+	workers := 100
+	wg := sync.WaitGroup{}
+	wg.Add(workers)
+	balanceCHan := make(chan float64, limit)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			for balance := range balanceCHan {
+				addPropertyTransactions(t, PropertyTransactionsRequest{PropertyID: propertyID, Amount: balance, Date: time.Now().Unix()})
+			}
+		}()
+	}
+	for i := 0; i < limit; i++ {
+		x := rand.Intn(2001) - 1000
+		expectedBalance += float64(x)
+		balanceCHan <- float64(x)
+	}
+	close(balanceCHan)
+	wg.Wait()
+
+	balanceURL := fmt.Sprintf("%s/property_transactions/v1/%d/property/%d/balance/", server.URL, userID, propertyID)
+
+	resp, err := http.Get(balanceURL)
+	if err != nil {
+		t.Fatalf("Failed to send GET: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var getPropertyBalanceHandlerResponse GetPropertyBalanceHandlerResponse
+	if err := json.Unmarshal(body, &getPropertyBalanceHandlerResponse); err != nil {
+		t.Fatalf("json.Unmarshal: %s", string(body))
+	}
+	if getPropertyBalanceHandlerResponse.Data.Balance != expectedBalance {
+		t.Errorf("Expected %v, got %v", expectedBalance, getPropertyBalanceHandlerResponse.Data.Balance)
+	}
+
 }

@@ -14,6 +14,7 @@ import (
 type PropertyTransactionsClient interface {
 	Add(ctx context.Context, userID int, propertyID int, txID int, propertyTransactions property_transactions_db.PropertyTransactions) (int, error)
 	All(ctx context.Context, userID int, propertyId int, propertyTransactions property_transactions_db.AllPropertyTransactionsParams) ([]property_transactions_db.Transaction, error)
+	Balance(ctx context.Context, userID int, propertyID int) (float64, error)
 }
 
 type Server struct {
@@ -29,12 +30,11 @@ func New(ctx context.Context, router *chi.Mux, propertyTransactionsClient Proper
 				r.Use(
 					middleware2.UserIDMiddleware,
 					middleware2.PropertyIDMiddleware,
-					middleware.Compress(5),
 					middleware.Recoverer,
 				)
 				r.Post("/", s.addPropertyTransactionsHandler)
-				r.Get("/{propertyID}/", s.getPropertyTransactionsHandler)
-				//r.Get("/property/{propertyID}/", s.getPropertyBalanceHandler)
+				r.Get("/property/{propertyID}/", s.getPropertyTransactionsHandler)
+				r.Get("/property/{propertyID}/balance/", s.getPropertyBalanceHandler)
 				//r.Get("/property/{propertyID}/monthly_report", s.addPropertyTransactionsHandler)
 
 			})
@@ -109,7 +109,22 @@ func (s *Server) getPropertyTransactionsHandler(w http.ResponseWriter, r *http.R
 }
 func (s *Server) getPropertyBalanceHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	_ = ctx
+	userID := middleware2.GetUserID(ctx)
+	propertyId, err := middleware2.GetPropertyId(ctx)
+	if err != nil {
+		_ = json.NewEncoder(w).Encode(PropertyTransactionsResponse{Success: false, Error: ErrorDetail{Code: 1002}})
+		return
+	}
+	balance, err := s.propertyTransactionsClient.Balance(ctx, userID, propertyId)
+	if err != nil {
+		_ = json.NewEncoder(w).Encode(PropertyTransactionsResponse{Success: false, Error: ErrorDetail{Code: 1002}})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(GetPropertyBalanceHandlerResponse{Success: true, Data: Balance{balance}})
+
+	w.WriteHeader(http.StatusCreated)
+
 	return
 
 }

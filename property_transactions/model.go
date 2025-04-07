@@ -96,3 +96,11 @@ type GetPropertyTransactionsHandlerResponse struct {
 	Success bool            `json:"success"`
 	Data    TransactionList `json:"data"`
 }
+
+type Balance struct {
+	Balance float64 `json:"balance"`
+}
+type GetPropertyBalanceHandlerResponse struct {
+	Success bool    `json:"success"`
+	Data    Balance `json:"data"`
+}

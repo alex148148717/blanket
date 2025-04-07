@@ -109,3 +109,27 @@ func FormatQuery(query string, args []interface{}) string {
 	}
 	return query
 }
+
+func (c *Client) Balance(ctx context.Context, userID int, propertyID int) (float64, error) {
+
+	query := `
+		SELECT  sum(amount)as amount
+		FROM property_transactions
+		WHERE user_id = ? AND property_id = ?
+	`
+
+	args := []interface{}{userID, propertyID}
+
+	rows, err := c.clickhouseConn.Query(ctx, query, args...)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	var balance float64
+	if rows.Next() {
+		_ = rows.Scan(&balance)
+	}
+	return balance, nil
+
+}
